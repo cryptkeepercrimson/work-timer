@@ -26,7 +26,10 @@ def main():
         sys.executable, "-m", "PyInstaller",
         "--onefile",              # one .exe, nothing to unzip
         "--windowed",             # no console window behind the widget
-        "--name", "Work Timer",
+        # No space in the name: GitHub rewrites spaces as dots when a file is
+        # attached to a release, which turns "Work Timer.exe" into the rather
+        # dubious-looking "Work.Timer.exe" on an already-unsigned download.
+        "--name", "WorkTimer",
         "--distpath", str(DIST),
         "--workpath", str(HERE / "build"),
         "--specpath", str(HERE / "build"),
@@ -47,7 +50,7 @@ def main():
     # The build folder is intermediate junk; the .exe is self-contained.
     shutil.rmtree(HERE / "build", ignore_errors=True)
 
-    exe = DIST / "Work Timer.exe"
+    exe = DIST / "WorkTimer.exe"
     size = exe.stat().st_size / (1024 * 1024) if exe.exists() else 0
     print(f"\nBuilt: {exe}  ({size:.1f} MB)")
     print("\nThat single file is the whole app. Copy it anywhere and run it;")
