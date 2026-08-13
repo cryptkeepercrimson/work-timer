@@ -373,6 +373,11 @@ If the window ever ends up off the edge of the screen — say a second monitor
 gets unplugged — it moves itself back to the top-left on next launch rather than
 being stranded where you can't reach it.
 
+## Which version am I running?
+
+**⚙ → General → About** shows the version, and where your logs are kept, with a
+button to open that folder. Worth quoting both if you report a problem.
+
 ## Building the .exe
 
 ```
@@ -380,8 +385,11 @@ pip install pyinstaller
 python build_exe.py
 ```
 
-The result is `dist/Work Timer.exe` — one self-contained file, around 11 MB,
+The result is `dist/WorkTimer.exe` — one self-contained file, around 11 MB,
 which is what gets attached to a release. Build output is not committed.
+
+To publish a new version, follow [RELEASING.md](RELEASING.md) — it starts with
+bumping the version, which is the step that gets forgotten.
 
 ## Your data stays yours
 

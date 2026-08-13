@@ -1,6 +1,7 @@
 """Every window other than the timer widget itself: logging a session, adding
 or editing time by hand, browsing the log, and settings."""
 
+import os
 import tkinter as tk
 from datetime import date, datetime, timedelta
 
@@ -866,6 +867,31 @@ class SettingsDialog(Dialog):
         caption(page, "Off unless you turn it on. Adds a small launcher to your\n"
                       "Windows Startup folder, and removes it when unticked.",
                 pady=(6, 0))
+
+        # The two things anyone asks first when something looks wrong: which
+        # version is this, and where does it keep my hours?
+        caption(page, "About", pady=(18, 0))
+        tk.Label(page, text=f"Work Timer v{core.__version__}", bg=theme.c("bg"),
+                 fg=theme.c("fg"), font=theme.ui(9)).pack(padx=18, pady=(3, 0), anchor="w")
+
+        folder = tk.Frame(page, bg=theme.c("bg"))
+        folder.pack(padx=18, pady=(6, 0), anchor="w", fill="x")
+        tk.Label(folder, text="Your logs are in", bg=theme.c("bg"), fg=theme.c("dim"),
+                 font=theme.ui(8)).pack(side="left", padx=(0, 6))
+        open_link = tk.Label(folder, text="  Open folder  ", bg=theme.c("panel"),
+                             fg=theme.c("dim"), font=theme.ui(8), cursor="hand2")
+        open_link.pack(side="left")
+        open_link.bind("<Button-1>", lambda _e: self._open_data_folder())
+        open_link.bind("<Enter>", lambda _e: open_link.configure(fg=theme.c("fg")))
+        open_link.bind("<Leave>", lambda _e: open_link.configure(fg=theme.c("dim")))
+        caption(page, str(core.LOG_DIR), pady=(4, 0), wraplength=320)
+
+    def _open_data_folder(self):
+        try:
+            core.LOG_DIR.mkdir(parents=True, exist_ok=True)
+            os.startfile(core.LOG_DIR)      # noqa: S606 - opening a folder in Explorer
+        except Exception:
+            pass
 
     # --- shared ---
     def _pending(self):

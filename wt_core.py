@@ -52,6 +52,10 @@ def _data_dir():
     return fallback
 
 
+# Bump this with every release, before building the .exe - it is what someone
+# reports when they tell you something is broken. See RELEASING.md.
+__version__ = "1.0.2"
+
 APP_DIR = _data_dir()
 INSTALL_DIR = _install_dir()
 LOG_DIR = APP_DIR / "Time Logs"

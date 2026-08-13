@@ -22,6 +22,13 @@ def main():
         print("PyInstaller is not installed. Run:\n\n    pip install pyinstaller\n")
         return 1
 
+    sys.path.insert(0, str(HERE))
+    import wt_core
+    version = wt_core.__version__
+    print(f"Building Work Timer v{version}")
+    print("If that isn't the version you meant to ship, stop now and update")
+    print("__version__ in wt_core.py - see RELEASING.md.\n")
+
     command = [
         sys.executable, "-m", "PyInstaller",
         "--onefile",              # one .exe, nothing to unzip
@@ -52,7 +59,7 @@ def main():
 
     exe = DIST / "WorkTimer.exe"
     size = exe.stat().st_size / (1024 * 1024) if exe.exists() else 0
-    print(f"\nBuilt: {exe}  ({size:.1f} MB)")
+    print(f"\nBuilt: {exe}  ({size:.1f} MB)  version {version}")
     print("\nThat single file is the whole app. Copy it anywhere and run it;")
     print("it creates its Time Logs folder alongside itself.")
     return 0
