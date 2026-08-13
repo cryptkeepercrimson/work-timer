@@ -123,7 +123,7 @@ spelling.
 
 **What counts as the same ID:** case and spaces are ignored, so `Admin`,
 `admin`, `ADMIN` and ` Admin ` all match, as do `BlueBird2` and `bluebird 2`.
-Punctuation is kept, so `SD-4471` and `SD4471` stay distinct — in a ticket
+Punctuation is kept, so `ACME-114` and `ACME114` stay distinct — in a ticket
 system those can genuinely be different things.
 
 **Which spelling wins:** the one you've used most, with ties going to the most
@@ -139,9 +139,9 @@ Three things in the ID box help before you save:
   if you see it on an ID you've used before, check your spelling.
 
 **Renaming still works.** When you edit an entry, that entry doesn't get a vote
-on its own spelling — so changing the only `BlueBird2` entry to `bluebird 2` genuinely
-renames it. If two other entries still say `BlueBird2`, editing one of them folds
-back to the majority; rename them one at a time to change them all.
+on its own spelling — so changing the only `BlueBird2` entry to `bluebird 2`
+genuinely renames it. If two other entries still say `BlueBird2`, editing one of
+them folds back to the majority; rename them one at a time to change them all.
 
 ## If the app dies while a timer is running
 
