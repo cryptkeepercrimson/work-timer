@@ -1,0 +1,7 @@
+# Normalise line endings so the repo is consistent regardless of who clones it.
+* text=auto eol=lf
+
+# The launchers are run by Windows Script Host, which wants CRLF.
+*.vbs text eol=crlf
+
+*.png binary

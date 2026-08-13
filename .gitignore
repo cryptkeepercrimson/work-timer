@@ -1,0 +1,27 @@
+# Your actual time log. Never commit this - it is your own working data, it
+# would name your clients publicly, and the markdown is regenerated on every
+# entry, so it would churn a commit every time you stop the timer.
+Time Logs/
+
+# Per-machine settings: window position, chosen theme, pay-period anchor.
+settings.json
+
+# Runtime files, written while the app is open.
+app.lock
+focus.request
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
