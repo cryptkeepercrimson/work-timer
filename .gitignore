@@ -10,12 +10,16 @@ settings.json
 app.lock
 focus.request
 
+# Build output. The .exe is attached to a GitHub Release, not committed - an
+# 11MB binary per version would bloat the repo permanently.
+dist/
+build/
+*.spec
+
 # Python
 __pycache__/
 *.py[cod]
 *.egg-info/
-build/
-dist/
 .venv/
 venv/
 

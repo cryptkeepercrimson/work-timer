@@ -188,13 +188,14 @@ class Dialog(tk.Toplevel):
 class ConfirmDialog(Dialog):
     """A yes/no question, themed to match everything else."""
 
-    def __init__(self, master, title, message, confirm_text="Delete"):
+    def __init__(self, master, title, message, confirm_text="Delete",
+                 confirm_kind="danger", cancel_text="Cancel"):
         super().__init__(master, title)
         tk.Label(
             self, text=message, bg=theme.c("bg"), fg=theme.c("fg"),
-            font=theme.ui(10), justify="left", wraplength=320,
+            font=theme.ui(10), justify="left", wraplength=340,
         ).pack(padx=18, pady=(18, 4), anchor="w")
-        self._buttons("Cancel", confirm_text, "danger")
+        self._buttons(cancel_text, confirm_text, confirm_kind)
         self._place(master)
 
     def _save(self):

@@ -14,13 +14,33 @@ at the end of each pay period.
 - **Plain markdown** in a folder you own — no account, no cloud, no database.
 - **Nothing to install** beyond Python. No build step, no dependencies.
 
-## Running it
+## Getting it
 
-Double-click **`Work Timer.vbs`**. No console window appears.
+### Just want to use it
 
-To make it easy to reach: right-click `Work Timer.vbs` → **Show more options** →
-**Send to** → **Desktop (create shortcut)**. You can also pin that shortcut to
-the taskbar or Start.
+Download **`Work Timer.exe`** from the
+[latest release](../../releases/latest) and put it in a folder of its own —
+somewhere you can write to, like `Documents\Work Timer`, not `Program Files`.
+Double-click it. That's the whole install: no Python, no setup, no admin rights.
+
+Your logs appear in a `Time Logs` folder next to the .exe, so keep it somewhere
+you'll find again. To move it later, move the whole folder and your history
+comes with it.
+
+> **Windows will warn you the first time.** The .exe isn't code-signed (a
+> certificate costs several hundred a year), so SmartScreen shows "Windows
+> protected your PC". Click **More info** → **Run anyway**. Some antivirus
+> scanners also flag apps built this way; it's a known false positive with
+> PyInstaller, not something the app is doing.
+
+### Running from source instead
+
+Clone or download the repo and double-click **`Work Timer.vbs`**. No console
+window appears. Needs Python — see *Requirements* below.
+
+To make either version easy to reach: right-click it → **Show more options** →
+**Send to** → **Desktop (create shortcut)**. You can pin that shortcut to the
+taskbar or Start.
 
 ## Using it
 
@@ -314,13 +334,14 @@ only ever deletes files carrying its own generated footer.
 
 ## Requirements
 
+The **.exe needs nothing** — not even Python. To run from source you need:
+
 - **Windows** — the launcher, the startup option and the single-instance check
   are Windows-specific.
 - **Python 3.8 or newer**, with tkinter (included in the standard python.org
   installer and in Anaconda/Miniconda).
 
-No other libraries, no build step, no install. Download the folder and
-double-click the launcher.
+No third-party libraries either way.
 
 To check what you have, run `python --version` in a terminal. If Python isn't
 installed, get it from [python.org](https://www.python.org/downloads/) and tick
@@ -346,6 +367,16 @@ installed, get it from [python.org](https://www.python.org/downloads/) and tick
 If the window ever ends up off the edge of the screen — say a second monitor
 gets unplugged — it moves itself back to the top-left on next launch rather than
 being stranded where you can't reach it.
+
+## Building the .exe
+
+```
+pip install pyinstaller
+python build_exe.py
+```
+
+The result is `dist/Work Timer.exe` — one self-contained file, around 11 MB,
+which is what gets attached to a release. Build output is not committed.
 
 ## Your data stays yours
 

@@ -45,7 +45,8 @@ class WorkTimer(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.close)
         # Once the window is actually on screen, so the prompt has a parent to
         # sit under.
-        self.recovery_job = self.after(300, self.check_recovered_timer)
+        self.recovery_job = self.after(
+            300, self.welcome if core.is_first_run() else self.check_recovered_timer)
         core.claim_lock()
         self.hold_lock()
 
@@ -273,6 +274,26 @@ class WorkTimer(tk.Tk):
         self.after_change()
 
     # --- other actions ---
+    def welcome(self):
+        """First run: get the user's own pay period set before they log anything.
+
+        Otherwise they silently inherit whatever the default happens to be and
+        find out a fortnight later that their periods start on the wrong day.
+        """
+        self.recovery_job = None
+        dialog = dialogs.ConfirmDialog(
+            self, "Welcome to Work Timer",
+            "Press START when you begin working and STOP when you finish, and "
+            "your hours are totalled into a markdown file you can invoice from."
+            "\n\nFirst, check how your time should be grouped - by default, "
+            "fortnightly from this Monday.",
+            confirm_text="Choose my settings", confirm_kind="primary",
+            cancel_text="Use the defaults")
+        self.wait_window(dialog)
+        core.save_settings(anchor=core.load_settings()["anchor"])   # stop asking
+        if dialog.result:
+            self.edit_settings()
+
     def check_recovered_timer(self):
         """Offer to keep time from a timer that was running when the app died.
 

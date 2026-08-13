@@ -12,7 +12,48 @@ import uuid
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-APP_DIR = Path(__file__).resolve().parent
+def _install_dir():
+    """Where the app lives, as a place to keep data next to.
+
+    Running as a script that is simply the folder holding the source. Packaged
+    into an .exe it must be the folder holding the .exe: PyInstaller unpacks a
+    one-file build into a temporary directory that Windows deletes on exit, so
+    anything written relative to this file would silently disappear when the
+    user closed the app.
+    """
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+def _writable(folder):
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        probe = folder / ".write-test"
+        probe.write_text("", encoding="utf-8")
+        probe.unlink()
+        return True
+    except Exception:
+        return False
+
+
+def _data_dir():
+    """Where logs and settings go: beside the app, or a per-user folder.
+
+    Keeping data beside the app makes it portable - copy the folder, keep your
+    history. That fails in places like Program Files, where a normal account
+    cannot write, so fall back to the user's own app data.
+    """
+    beside = _install_dir()
+    if _writable(beside):
+        return beside
+    fallback = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Work Timer"
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
+
+
+APP_DIR = _data_dir()
+INSTALL_DIR = _install_dir()
 LOG_DIR = APP_DIR / "Time Logs"
 DATA_FILE = LOG_DIR / "entries.json"
 SETTINGS_FILE = APP_DIR / "settings.json"
@@ -42,9 +83,19 @@ HEARTBEAT_SECONDS = 30    # how often a running timer records that it's alive
 INSTANCE_TIMEOUT = 90     # a lock older than this belongs to a dead instance
 INSTANCE_POLL_MS = 2000   # how often the live instance refreshes and checks in
 
+def default_anchor():
+    """The most recent Monday - a sensible period start for someone new.
+
+    Whatever the user picks in settings replaces this; it only decides where
+    periods fall before anyone has said.
+    """
+    today = date.today()
+    return (today - timedelta(days=today.weekday())).isoformat()
+
+
 DEFAULTS = {
     "frequency": "biweekly",
-    "anchor": "2026-08-10",   # any real period start; periods step from here
+    "anchor": None,           # filled in with default_anchor() when unset
     "month_start_day": 1,
     "position": "+120+120",
     "theme": "midnight",
@@ -72,9 +123,16 @@ def load_settings():
     # disk, not the merged result - the default always supplies "anchor".
     if "anchor" not in stored and "pay_period_anchor" in stored:
         settings["anchor"] = stored["pay_period_anchor"]
+    if not settings.get("anchor"):
+        settings["anchor"] = default_anchor()
     if settings.get("frequency") not in FREQUENCIES:
         settings["frequency"] = DEFAULTS["frequency"]
     return settings
+
+
+def is_first_run():
+    """True before anything has been configured or logged."""
+    return not SETTINGS_FILE.exists() and not DATA_FILE.exists()
 
 
 def save_settings(**changes):
@@ -176,7 +234,7 @@ def anchor_date(settings=None):
     try:
         return date.fromisoformat(str(settings.get("anchor")))
     except Exception:
-        return date.fromisoformat(DEFAULTS["anchor"])
+        return date.fromisoformat(default_anchor())
 
 
 def month_start_day(settings=None):
@@ -769,20 +827,25 @@ def set_startup(enabled):
             startup_file().unlink(missing_ok=True)
             return True
 
-        launcher = APP_DIR / "work_timer.py"
-        runner = Path(sys.executable)
-        if runner.name.lower() == "python.exe":       # avoid a console window
-            windowless = runner.with_name("pythonw.exe")
-            if windowless.exists():
-                runner = windowless
+        if getattr(sys, "frozen", False):
+            # Packaged: launch the .exe itself. There is no Python on the
+            # machine to point at.
+            command = f'""{Path(sys.executable).resolve()}""'
+        else:
+            runner = Path(sys.executable)
+            if runner.name.lower() == "python.exe":    # avoid a console window
+                windowless = runner.with_name("pythonw.exe")
+                if windowless.exists():
+                    runner = windowless
+            command = f'""{runner}"" ""{INSTALL_DIR / "work_timer.py"}""'
 
         startup_folder().mkdir(parents=True, exist_ok=True)
         startup_file().write_text(
             "' Starts Work Timer when you sign in to Windows.\n"
             "' Delete this file, or untick the box in the app's settings, to stop.\n"
             "Set shell = CreateObject(\"WScript.Shell\")\n"
-            f"shell.CurrentDirectory = \"{APP_DIR}\"\n"
-            f"shell.Run \"\"\"{runner}\"\" \"\"{launcher}\"\"\", 0, False\n",
+            f"shell.CurrentDirectory = \"{INSTALL_DIR}\"\n"
+            f"shell.Run \"{command}\", 0, False\n",
             encoding="utf-8")
         return True
     except Exception:
