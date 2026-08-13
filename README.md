@@ -232,6 +232,11 @@ total at the top.
   BLUEBIRD  3.83    230.0
   Total     10.75   645.0
   ```
+- **Click a column heading to sort** — by date, ID, description or hours. Click
+  the same heading again to reverse it. Date and hours start with the newest and
+  longest first; names start at A. Sorting by ID groups everything for one
+  client together, which is the view to check before invoicing. The chosen
+  order is remembered.
 - **Edit** on any row reopens it in the same form used for adding time, with the
   values filled in. Change anything — including the date — and save.
 - **Delete** removes an entry after asking you to confirm. There's no undo.

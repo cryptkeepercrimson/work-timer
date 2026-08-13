@@ -102,6 +102,8 @@ DEFAULTS = {
     "ui_font": "Segoe UI",
     "clock_font": "Consolas",
     "start_with_windows": False,
+    "sort_by": "date",        # which column the log window is ordered by
+    "sort_desc": True,
 }
 
 

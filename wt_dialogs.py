@@ -390,6 +390,12 @@ class LogViewer(tk.Toplevel):
         self.on_change = on_change
         self.periods = []
 
+        settings = core.load_settings()
+        self.sort_key = settings.get("sort_by", "date")
+        if self.sort_key not in ("date", "id", "description", "hours"):
+            self.sort_key = "date"
+        self.sort_desc = bool(settings.get("sort_desc", True))
+
         self.title("Work log")
         self.configure(bg=theme.c("bg"))
         self.geometry("800x460")
@@ -415,21 +421,29 @@ class LogViewer(tk.Toplevel):
 
         columns = tk.Frame(self, bg=theme.c("panel"))
         columns.pack(fill="x", padx=16)
+        self.headings = {}
 
-        def heading(text, width, side="left", anchor="w"):
-            tk.Label(columns, text=text, bg=theme.c("panel"), fg=theme.c("dim"),
-                     font=theme.ui(8, "bold"), width=width, anchor=anchor,
-                     padx=4, pady=4).pack(side=side)
+        def heading(text, width, key=None, side="left", anchor="w", expand=False):
+            label = tk.Label(columns, text=text, bg=theme.c("panel"),
+                             fg=theme.c("dim"), font=theme.ui(8, "bold"),
+                             anchor=anchor, padx=4, pady=4,
+                             **({} if expand else {"width": width}))
+            label.pack(side=side, **({"fill": "x", "expand": True} if expand else {}))
+            if key:
+                label.configure(cursor="hand2")
+                label.bind("<Button-1>", lambda _e, k=key: self.sort_by(k))
+                # Date and Time both sort on the same value, so a key can own
+                # more than one heading.
+                self.headings.setdefault(key, []).append((label, text))
+            return label
 
         # Packed in the same order as the rows below, so the columns line up.
-        heading("Date", self.DATE_W)
-        heading("Time", self.TIME_W)
-        heading("ID", self.ID_W)
+        heading("Date", self.DATE_W, "date")
+        heading("Time", self.TIME_W, "date")
+        heading("ID", self.ID_W, "id")
         heading("", self.ACTIONS_W, side="right")
-        heading("Hours", self.HOURS_W, side="right", anchor="e")
-        tk.Label(columns, text="Description", bg=theme.c("panel"), fg=theme.c("dim"),
-                 font=theme.ui(8, "bold"), anchor="w", padx=4, pady=4
-                 ).pack(side="left", fill="x", expand=True)
+        heading("Hours", self.HOURS_W, "hours", side="right", anchor="e")
+        heading("Description", None, "description", expand=True)
 
         # Scrollable body: a canvas holding one frame of rows.
         holder = tk.Frame(self, bg=theme.c("bg"))
@@ -501,17 +515,51 @@ class LogViewer(tk.Toplevel):
                 return period, False
         return None, True
 
+    # Which way round each column starts when you first click it: newest and
+    # longest first, but names A to Z.
+    SORT_DEFAULT_DESC = {"date": True, "hours": True, "id": False, "description": False}
+
+    def _sort_value(self, entry):
+        """The value to order by. Ties fall back to the start time, so that
+        entries sharing an ID stay in a sensible order within their group."""
+        if self.sort_key == "id":
+            return (entry["id"].lower(), entry["start"])
+        if self.sort_key == "description":
+            return (entry.get("description", "").lower(), entry["start"])
+        if self.sort_key == "hours":
+            return (entry["seconds"], entry["start"])
+        return (entry["start"],)
+
+    def sort_by(self, key):
+        """Clicking a heading sorts by it; clicking the active one reverses."""
+        if key == self.sort_key:
+            self.sort_desc = not self.sort_desc
+        else:
+            self.sort_key = key
+            self.sort_desc = self.SORT_DEFAULT_DESC.get(key, True)
+        core.save_settings(sort_by=self.sort_key, sort_desc=self.sort_desc)
+        self.refresh()
+
+    def _mark_sorted_heading(self):
+        arrow = " ▾" if self.sort_desc else " ▴"
+        for key, labels in self.headings.items():
+            active = key == self.sort_key
+            for label, text in labels:
+                label.configure(text=text + (arrow if active and text else ""),
+                                fg=theme.c("fg") if active else theme.c("dim"))
+
     def _visible_entries(self):
         period, everything = self._selected_period()
         entries = core.load_entries()
         if not everything:
             entries = core.entries_in_period(entries, period)
-        return sorted(entries, key=lambda e: e["start"], reverse=True)
+        return sorted(entries, key=self._sort_value, reverse=self.sort_desc)
 
     # --- drawing ---
     def refresh(self):
         for child in self.rows.winfo_children():
             child.destroy()
+        self._mark_sorted_heading()
 
         entries = self._visible_entries()
         total = sum(e["seconds"] for e in entries)
@@ -525,7 +573,9 @@ class LogViewer(tk.Toplevel):
             self.hint.configure(text="")
             return
 
-        self.hint.configure(text="Edit fixes a mistake; Delete removes the entry entirely.")
+        self.hint.configure(
+            text="Click a column heading to sort.  "
+                 "Edit fixes a mistake; Delete removes the entry entirely.")
         for index, entry in enumerate(entries):
             self._draw_row(entry, index)
 
