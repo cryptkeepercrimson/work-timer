@@ -402,4 +402,11 @@ clone this, your own hours never end up in a commit.
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE).
+Copyright 2026 CryptKeeperCrimson. All rights reserved — see [LICENSE.md](LICENSE.md).
+
+- **Use it for your own work**, including work you're paid for. No need to ask.
+- **Share it unchanged**, and modify it for your own use.
+- **Don't make a product out of it** — no selling it, charging for access,
+  offering it as a service, or bundling it into something you sell.
+
+Source-available, not open source.
