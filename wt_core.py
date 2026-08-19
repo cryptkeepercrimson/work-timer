@@ -54,7 +54,7 @@ def _data_dir():
 
 # Bump this with every release, before building the .exe - it is what someone
 # reports when they tell you something is broken. See RELEASING.md.
-__version__ = "1.0.2"
+__version__ = "1.1.0"
 
 APP_DIR = _data_dir()
 INSTALL_DIR = _install_dir()
@@ -108,6 +108,7 @@ DEFAULTS = {
     "start_with_windows": False,
     "sort_by": "date",        # which column the log window is ordered by
     "sort_desc": True,
+    "groups": {},             # {group name: [id keys]} reported as one line
 }
 
 
@@ -452,12 +453,8 @@ def render_period(entries, period, settings=None):
     settings = settings or load_settings()
     rows = sorted(entries_in_period(entries, period), key=lambda e: e["start"])
 
-    totals = {}
-    for e in rows:
-        bucket = totals.setdefault(e["id"], {"seconds": 0, "count": 0})
-        bucket["seconds"] += e["seconds"]
-        bucket["count"] += 1
     grand = sum(e["seconds"] for e in rows)
+    totals = grouped_totals(rows, load_groups(settings))
 
     out = [
         f"# {period_heading(period, settings)}",
@@ -470,12 +467,22 @@ def render_period(entries, period, settings=None):
         "| ID | Hours (decimal) | Minutes | Entries |",
         "| --- | ---: | ---: | ---: |",
     ]
-    for entry_id in sorted(totals):
-        t = totals[entry_id]
-        out.append(
-            f"| {clean_cell(entry_id)} | {to_hours(t['seconds'])} | "
-            f"{to_minutes(t['seconds'])} | {t['count']} |"
-        )
+    for row in totals:
+        if row["kind"] == "group":
+            # The group is the figure to submit; its parts sit underneath in
+            # case anyone asks what made it up.
+            out.append(
+                f"| **{clean_cell(row['label'])}** | **{to_hours(row['seconds'])}** | "
+                f"**{to_minutes(row['seconds'])}** | **{row['count']}** |")
+            for member in row["members"]:
+                out.append(
+                    f"| &nbsp;&nbsp;↳ {clean_cell(member['label'])} | "
+                    f"{to_hours(member['seconds'])} | {to_minutes(member['seconds'])} | "
+                    f"{member['count']} |")
+        else:
+            out.append(
+                f"| {clean_cell(row['label'])} | {to_hours(row['seconds'])} | "
+                f"{to_minutes(row['seconds'])} | {row['count']} |")
     # A Break column would be noise in the usual case, so it only appears when
     # something in this period actually has one.
     any_breaks = any(e.get("paused_seconds") for e in rows)
@@ -877,12 +884,16 @@ def id_key(text):
     Punctuation is kept, so "SD-4471" and "SD4471" stay distinct - in a ticket
     system those can genuinely be different things.
     """
-    return "".join(str(text).lower().split())
+    if not isinstance(text, str):
+        return ""      # never let None become the key "none" and match an ID
+    return "".join(text.lower().split())
 
 
 def tidy_id(text):
     """Trim, and collapse runs of spaces, without changing the spelling."""
-    return " ".join(str(text).split())
+    if not isinstance(text, str):
+        return ""
+    return " ".join(text.split())
 
 
 def id_spellings(entries=None, exclude_uid=None):
@@ -926,6 +937,109 @@ def is_new_id(text, entries=None, exclude_uid=None):
     """True when nothing logged so far shares this ID - flags likely typos."""
     key = id_key(text)
     return bool(key) and key not in id_spellings(entries, exclude_uid)
+
+
+# --------------------------------------------------------------------------
+# groups
+#
+# Several IDs can be reported as one line - a handful of admin categories
+# totalled together, or every project for one client. Grouping is stored in
+# settings, not on the entries: it is a way of reporting the hours, so changing
+# it must never touch what was actually logged.
+# --------------------------------------------------------------------------
+
+def load_groups(settings=None):
+    """{group name: [id keys]}, cleaned of anything malformed."""
+    settings = settings or load_settings()
+    raw = settings.get("groups")
+    groups = {}
+    if isinstance(raw, dict):
+        for name, members in raw.items():
+            label = tidy_id(name)
+            if not label or not isinstance(members, list):
+                continue
+            keys = []
+            for member in members:
+                key = id_key(member)
+                if key and key not in keys:
+                    keys.append(key)
+            groups[label] = keys
+    return groups
+
+
+def group_of(entry_id, groups=None):
+    """The group an ID reports under, or None. An ID belongs to at most one."""
+    groups = load_groups() if groups is None else groups
+    key = id_key(entry_id)
+    for name, members in groups.items():
+        if key in members:
+            return name
+    return None
+
+
+def assign_to_group(groups, entry_id, group_name):
+    """Put an ID in a group, or take it out entirely when group_name is None.
+
+    Membership is exclusive - an ID counted under two groups would be billed
+    twice, so joining one always leaves the other.
+    """
+    key = id_key(entry_id)
+    if not key:
+        return groups
+    for members in groups.values():
+        if key in members:
+            members.remove(key)
+    if group_name:
+        groups.setdefault(tidy_id(group_name), []).append(key)
+    return groups
+
+
+def grouped_totals(entries, groups=None):
+    """Totals ready to report, alphabetical, with grouped IDs nested.
+
+    Returns rows of {"kind": "group"|"id", "label", "seconds", "count"} where a
+    group row also carries "members" - the same shape, one level down.
+    """
+    groups = load_groups() if groups is None else groups
+    spellings = id_spellings(entries)
+
+    per_id = {}
+    for entry in entries:
+        key = id_key(entry.get("id", ""))
+        if not key:
+            continue
+        bucket = per_id.setdefault(key, {"seconds": 0, "count": 0})
+        bucket["seconds"] += entry["seconds"]
+        bucket["count"] += 1
+
+    rows, claimed = [], set()
+    for name in sorted(groups, key=str.lower):
+        members = [k for k in groups[name] if k in per_id]
+        if not members:
+            continue          # a group nothing has been logged against yet
+        claimed.update(members)
+        member_rows = [{
+            "kind": "id",
+            "label": spellings.get(key, key),
+            "seconds": per_id[key]["seconds"],
+            "count": per_id[key]["count"],
+        } for key in members]
+        member_rows.sort(key=lambda r: r["label"].lower())
+        rows.append({
+            "kind": "group",
+            "label": name,
+            "seconds": sum(r["seconds"] for r in member_rows),
+            "count": sum(r["count"] for r in member_rows),
+            "members": member_rows,
+        })
+
+    for key, totals in per_id.items():
+        if key not in claimed:
+            rows.append({"kind": "id", "label": spellings.get(key, key),
+                         "seconds": totals["seconds"], "count": totals["count"]})
+
+    rows.sort(key=lambda r: r["label"].lower())
+    return rows
 
 
 def all_ids():

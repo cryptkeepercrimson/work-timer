@@ -18,7 +18,7 @@ at the end of each pay period.
 
 ### Just want to use it
 
-Download **`Work Timer.exe`** from the
+Download **`WorkTimer.exe`** from the
 [latest release](../../releases/latest) and put it in a folder of its own —
 somewhere you can write to, like `Documents\Work Timer`, not `Program Files`.
 Double-click it. That's the whole install: no Python, no setup, no admin rights.
@@ -58,6 +58,9 @@ taskbar or Start.
 - The bottom line always shows the running total for the current period.
 - **Log** opens the work log, to review or correct what you've recorded.
 - The **⚙** opens settings — grouping, colours and fonts.
+- The **✕** closes the app. If a timer is still running, you'll be prompted to
+  log it first, so nothing gets lost.
+- The window remembers where you left it.
 
 ## Pausing
 
@@ -110,9 +113,6 @@ so a typo is obvious before you save. A time with no `am`/`pm` is read on the
 24-hour clock, so a 1pm meeting typed as `1:00` reads as 1 AM; the live duration
 will show something absurd like `13.5 h` if you get it wrong. If the end time is
 before the start, it's treated as an overnight session and labelled as such.
-- The **✕** closes the app. If a timer is still running, you'll be prompted to
-  log it first, so nothing gets lost.
-- The window remembers where you left it.
 
 ## External IDs
 
@@ -259,6 +259,37 @@ The **Appearance** tab of settings has:
 A live preview shows the clock, a sample entry and the START button in your
 chosen combination before you commit. Changes apply the moment you save; a
 running timer keeps running.
+
+## Combining IDs into one total
+
+Several IDs can report as a single line. Useful when a handful of admin
+categories should total together, or when separate projects all belong to one
+client.
+
+**⚙ → Groups.** Type a name, press **New group**, then set each ID's dropdown to
+that group. An ID belongs to one group at a time — putting it in another takes
+it out of the first, so nothing is ever counted twice.
+
+The totals table then shows the group as the headline figure with its parts
+underneath:
+
+| ID | Hours (decimal) | Minutes | Entries |
+| --- | ---: | ---: | ---: |
+| ACME-114 | 2.0 | 120.0 | 1 |
+| **Admin** | **1.75** | **105.0** | **3** |
+| &nbsp;&nbsp;↳ Email | 0.5 | 30.0 | 1 |
+| &nbsp;&nbsp;↳ Expenses | 0.25 | 15.0 | 1 |
+| &nbsp;&nbsp;↳ Invoicing | 1.0 | 60.0 | 1 |
+
+Submit the group figure; the breakdown is there if anyone queries it. **Copy
+totals** copies the same shape.
+
+In the log window, a grouped entry shows as `Admin › Email`, and sorting by ID
+clusters a group's entries together.
+
+**Grouping only changes how hours are reported.** Your entries are untouched —
+group, regroup, or remove a group entirely and every logged session stays
+exactly as it was. Empty groups are dropped when you save.
 
 ## Choosing how time is grouped
 

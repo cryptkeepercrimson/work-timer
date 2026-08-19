@@ -396,6 +396,8 @@ class LogViewer(tk.Toplevel):
         if self.sort_key not in ("date", "id", "description", "hours"):
             self.sort_key = "date"
         self.sort_desc = bool(settings.get("sort_desc", True))
+        # Read once per refresh rather than per row - it is the same for all.
+        self.groups = core.load_groups(settings)
 
         self.title("Work log")
         self.configure(bg=theme.c("bg"))
@@ -524,7 +526,10 @@ class LogViewer(tk.Toplevel):
         """The value to order by. Ties fall back to the start time, so that
         entries sharing an ID stay in a sensible order within their group."""
         if self.sort_key == "id":
-            return (entry["id"].lower(), entry["start"])
+            # Sort under the group where there is one, so a client's IDs sit
+            # together instead of scattering across the alphabet.
+            group = core.group_of(entry["id"], self.groups)
+            return ((group or entry["id"]).lower(), entry["id"].lower(), entry["start"])
         if self.sort_key == "description":
             return (entry.get("description", "").lower(), entry["start"])
         if self.sort_key == "hours":
@@ -560,6 +565,7 @@ class LogViewer(tk.Toplevel):
     def refresh(self):
         for child in self.rows.winfo_children():
             child.destroy()
+        self.groups = core.load_groups()   # may have changed in settings
         self._mark_sorted_heading()
 
         entries = self._visible_entries()
@@ -599,7 +605,10 @@ class LogViewer(tk.Toplevel):
         break_note = f" -{core.to_minutes(paused):g}m" if paused else ""
         cell(f"{started:%Y-%m-%d}", self.DATE_W)
         cell(f"{started:%H:%M}-{ended:%H:%M}{overnight}{break_note}", self.TIME_W)
-        cell(entry["id"], self.ID_W)
+        # Shown as "Group > ID" when it reports under one, so it is obvious
+        # which line of the invoice this hour lands on.
+        group = core.group_of(entry["id"], self.groups)
+        cell(f"{group} › {entry['id']}" if group else entry["id"], self.ID_W)
 
         # Buttons before the flexible description, so a long note can never
         # push them off the edge of the window.
@@ -627,16 +636,17 @@ class LogViewer(tk.Toplevel):
         Tabs so it drops straight into a spreadsheet cell-by-cell, while still
         reading fine if pasted somewhere plain.
         """
-        totals = {}
-        for entry in self._visible_entries():
-            totals[entry["id"]] = totals.get(entry["id"], 0) + entry["seconds"]
-        grand = sum(totals.values())
+        entries = self._visible_entries()
+        grand = sum(e["seconds"] for e in entries)
 
-        heading = self.period_choice.get()
-        lines = [heading, "", "ID\tHours\tMinutes"]
-        for name in sorted(totals, key=lambda n: n.lower()):
-            seconds = totals[name]
-            lines.append(f"{name}\t{core.to_hours(seconds)}\t{core.to_minutes(seconds)}")
+        lines = [self.period_choice.get(), "", "ID\tHours\tMinutes"]
+        for row in core.grouped_totals(entries):
+            lines.append(f"{row['label']}\t{core.to_hours(row['seconds'])}"
+                         f"\t{core.to_minutes(row['seconds'])}")
+            # Members indented, so a group's parts paste in underneath it.
+            for member in row.get("members", []):
+                lines.append(f"    {member['label']}\t{core.to_hours(member['seconds'])}"
+                             f"\t{core.to_minutes(member['seconds'])}")
         lines.append(f"Total\t{core.to_hours(grand)}\t{core.to_minutes(grand)}")
         return "\n".join(lines)
 
@@ -705,7 +715,7 @@ class SettingsDialog(Dialog):
         tabs = tk.Frame(self, bg=theme.c("bg"))
         tabs.pack(padx=18, pady=(14, 0), anchor="w")
         self.tab_buttons = {}
-        for name in ("Log grouping", "Appearance", "General"):
+        for name in ("Log grouping", "Groups", "Appearance", "General"):
             button = tk.Label(tabs, text=f"  {name}  ", bg=theme.c("bg"),
                               fg=theme.c("dim"), font=theme.ui(9), cursor="hand2",
                               pady=4)
@@ -718,16 +728,18 @@ class SettingsDialog(Dialog):
         self.grouping_page = tk.Frame(self.pages, bg=theme.c("bg"))
         self.appearance_page = tk.Frame(self.pages, bg=theme.c("bg"))
         self.general_page = tk.Frame(self.pages, bg=theme.c("bg"))
+        self.groups_page = tk.Frame(self.pages, bg=theme.c("bg"))
 
         # The preview line and buttons are packed before the pages are filled in,
         # so they sit at the bottom and exist for the first preview update.
         self.preview = caption(self, "", pady=(12, 0))
-        self._buttons("Cancel", "Save")
+        self.buttons_row = self._buttons("Cancel", "Save")
 
         # Appearance and General first: the grouping page's live preview reads
         # values from both while it builds.
         self._build_appearance(self.appearance_page)
         self._build_general(self.general_page)
+        self._build_groups(self.groups_page)
         self._build_grouping(self.grouping_page)
 
         self._show_tab("Log grouping")
@@ -736,6 +748,7 @@ class SettingsDialog(Dialog):
     # --- tabs ---
     def _show_tab(self, name):
         pages = {"Log grouping": self.grouping_page,
+                 "Groups": self.groups_page,
                  "Appearance": self.appearance_page,
                  "General": self.general_page}
         for page in pages.values():
@@ -746,6 +759,13 @@ class SettingsDialog(Dialog):
                              bg=theme.c("panel") if chosen else theme.c("bg"),
                              font=theme.ui(9, "bold" if chosen else "normal"))
         pages[name].pack(fill="both", expand=True, pady=(10, 0))
+        # The period preview only describes the grouping tab, so it would just
+        # be a puzzle sitting under the others.
+        if name == "Log grouping":
+            self.preview.pack(padx=18, pady=(12, 0), anchor="w",
+                              before=self.buttons_row)
+        else:
+            self.preview.pack_forget()
         self._update_preview()
 
     # --- grouping tab ---
@@ -853,6 +873,95 @@ class SettingsDialog(Dialog):
         self.swatch_button.configure(bg=chosen["accent"], fg=chosen["accent_fg"],
                                      font=(self.ui_font_label.get(), 10, "bold"))
 
+    # --- groups tab ---
+    def _build_groups(self, page):
+        """Assign IDs to a group so they report as one line.
+
+        Edits are held here and written when Save is pressed, like every other
+        tab - nothing is committed by fiddling with a dropdown.
+        """
+        self.groups = core.load_groups(self.settings)
+
+        caption(page, "Report several IDs as one line — an ID belongs to one group.")
+
+        adder = tk.Frame(page, bg=theme.c("bg"))
+        adder.pack(padx=18, pady=(8, 0), fill="x")
+        self.new_group = styled_entry(adder, width=22)
+        self.new_group.pack(side="left", ipady=4)
+        self.new_group.bind("<Return>", lambda _e: self._add_group())
+        small_button(adder, "New group", self._add_group).pack(side="left", padx=(6, 0))
+
+        # Scrollable, because the list grows with every ID ever used.
+        holder = tk.Frame(page, bg=theme.c("bg"), height=170)
+        holder.pack(padx=18, pady=(12, 0), fill="both", expand=True)
+        holder.pack_propagate(False)
+        self.group_canvas = tk.Canvas(holder, bg=theme.c("bg"), highlightthickness=0)
+        bar = tk.Scrollbar(holder, orient="vertical", command=self.group_canvas.yview,
+                           relief="flat", bg=theme.c("panel"), troughcolor=theme.c("bg"),
+                           activebackground=theme.c("dim"), borderwidth=0,
+                           highlightthickness=0, width=12)
+        self.group_rows = tk.Frame(self.group_canvas, bg=theme.c("bg"))
+        window = self.group_canvas.create_window((0, 0), window=self.group_rows, anchor="nw")
+        self.group_canvas.configure(yscrollcommand=bar.set)
+        self.group_canvas.pack(side="left", fill="both", expand=True)
+        bar.pack(side="right", fill="y")
+        self.group_rows.bind("<Configure>", lambda _e: self.group_canvas.configure(
+            scrollregion=self.group_canvas.bbox("all")))
+        self.group_canvas.bind("<Configure>", lambda e: self.group_canvas.itemconfigure(
+            window, width=e.width))
+
+        self.group_note = caption(page, "", pady=(6, 0))
+        self._refresh_groups()
+
+    def _add_group(self):
+        name = core.tidy_id(self.new_group.get())
+        if not name:
+            self._flash(self.new_group)
+            return
+        if name.lower() in {g.lower() for g in self.groups}:
+            self.group_note.configure(text=f"\"{name}\" already exists",
+                                      fg=theme.c("danger"))
+            return
+        self.groups[name] = []
+        self.new_group.delete(0, "end")
+        self._refresh_groups()
+
+    def _refresh_groups(self):
+        for child in self.group_rows.winfo_children():
+            child.destroy()
+
+        known = [name for name, _ in core.all_ids()]
+        if not known:
+            caption(self.group_rows, "Nothing logged yet — IDs appear here once you use them.",
+                    padx=0)
+            return
+
+        choices = ["(no group)"] + sorted(self.groups, key=str.lower)
+        self.group_choices = {}
+        for entry_id in known:
+            row = tk.Frame(self.group_rows, bg=theme.c("bg"))
+            row.pack(fill="x", pady=1)
+            tk.Label(row, text=entry_id, bg=theme.c("bg"), fg=theme.c("fg"),
+                     font=theme.ui(9), width=16, anchor="w").pack(side="left")
+            current = core.group_of(entry_id, self.groups) or "(no group)"
+            choice = tk.StringVar(value=current)
+            self.group_choices[entry_id] = choice
+            styled_dropdown(row, choice, choices,
+                            command=lambda _v, i=entry_id: self._group_changed(i)
+                            ).pack(side="left", fill="x", expand=True)
+
+        empty = [name for name in self.groups if not self.groups[name]]
+        self.group_note.configure(
+            text=(f"Empty, and will be dropped when you save: {', '.join(empty)}"
+                  if empty else ""),
+            fg=theme.c("dim"))
+
+    def _group_changed(self, entry_id):
+        chosen = self.group_choices[entry_id].get()
+        core.assign_to_group(self.groups, entry_id,
+                             None if chosen == "(no group)" else chosen)
+        self._refresh_groups()
+
     # --- general tab ---
     def _build_general(self, page):
         caption(page, "Startup")
@@ -901,7 +1010,11 @@ class SettingsDialog(Dialog):
                         theme=theme.key_for_label(self.theme_label.get()),
                         ui_font=self.ui_font_label.get(),
                         clock_font=self.clock_font_label.get(),
-                        start_with_windows=bool(self.startup_choice.get()))
+                        start_with_windows=bool(self.startup_choice.get()),
+                        # Groups with no members left are dropped rather than
+                        # lingering as empty entries in the settings file.
+                        groups={name: members for name, members in self.groups.items()
+                                if members})
 
         if frequency == "weekly":
             today = date.today()

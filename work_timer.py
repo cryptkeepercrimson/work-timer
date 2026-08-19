@@ -375,6 +375,7 @@ class WorkTimer(tk.Tk):
             month_start_day=chosen["month_start_day"], theme=chosen["theme"],
             ui_font=chosen["ui_font"], clock_font=chosen["clock_font"],
             start_with_windows=chosen["start_with_windows"],
+            groups=chosen["groups"],
         )
         wanted = chosen["start_with_windows"]
         if wanted != core.startup_enabled() and not core.set_startup(wanted):
@@ -383,12 +384,14 @@ class WorkTimer(tk.Tk):
         theme.apply_settings(chosen)
         self.build_ui()   # colours and fonts are read when widgets are built
 
+        # Groups change the totals tables, so the markdown has to be rewritten
+        # for them too - not just when the period shape changes.
         regrouped = any(before.get(key) != chosen.get(key)
-                        for key in ("frequency", "anchor", "month_start_day"))
+                        for key in ("frequency", "anchor", "month_start_day", "groups"))
         if regrouped:
             files = core.rebuild_all()
             self.status.configure(
-                text=f"Regrouped into {files} file{'' if files == 1 else 's'}")
+                text=f"Rebuilt {files} file{'' if files == 1 else 's'}")
         if self.viewer is not None and self.viewer.winfo_exists():
             self.viewer.destroy()   # it was built with the old colours
             self.viewer = dialogs.LogViewer(self, on_change=self.after_change)
