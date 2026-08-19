@@ -54,7 +54,7 @@ def _data_dir():
 
 # Bump this with every release, before building the .exe - it is what someone
 # reports when they tell you something is broken. See RELEASING.md.
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 APP_DIR = _data_dir()
 INSTALL_DIR = _install_dir()
@@ -108,6 +108,7 @@ DEFAULTS = {
     "start_with_windows": False,
     "sort_by": "date",        # which column the log window is ordered by
     "sort_desc": True,
+    "log_view": "summary",   # log window opens on totals, not every entry
     "groups": {},             # {group name: [id keys]} reported as one line
 }
 

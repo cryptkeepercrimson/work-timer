@@ -398,6 +398,12 @@ class LogViewer(tk.Toplevel):
         self.sort_desc = bool(settings.get("sort_desc", True))
         # Read once per refresh rather than per row - it is the same for all.
         self.groups = core.load_groups(settings)
+        # "summary" opens on one line per ID - what you check before
+        # invoicing; "entries" is the flat list of every session.
+        self.view = settings.get("log_view", "summary")
+        if self.view not in ("summary", "entries"):
+            self.view = "summary"
+        self.expanded = set()
 
         self.title("Work log")
         self.configure(bg=theme.c("bg"))
@@ -418,35 +424,17 @@ class LogViewer(tk.Toplevel):
         self.copy_button = small_button(header, "Copy totals", self.copy_totals)
         self.copy_button.pack(side="right", padx=(0, 8))
 
+        self.view_button = small_button(header, "", self.toggle_view)
+        self.view_button.pack(side="right", padx=(0, 8))
+
         self.summary = tk.Label(self, text="", bg=theme.c("bg"), fg=theme.c("fg"),
                                 font=theme.ui(10, "bold"))
         self.summary.pack(anchor="w", padx=16, pady=(10, 6))
 
-        columns = tk.Frame(self, bg=theme.c("panel"))
-        columns.pack(fill="x", padx=16)
+        self.columns = tk.Frame(self, bg=theme.c("panel"))
+        self.columns.pack(fill="x", padx=16)
         self.headings = {}
-
-        def heading(text, width, key=None, side="left", anchor="w", expand=False):
-            label = tk.Label(columns, text=text, bg=theme.c("panel"),
-                             fg=theme.c("dim"), font=theme.ui(8, "bold"),
-                             anchor=anchor, padx=4, pady=4,
-                             **({} if expand else {"width": width}))
-            label.pack(side=side, **({"fill": "x", "expand": True} if expand else {}))
-            if key:
-                label.configure(cursor="hand2")
-                label.bind("<Button-1>", lambda _e, k=key: self.sort_by(k))
-                # Date and Time both sort on the same value, so a key can own
-                # more than one heading.
-                self.headings.setdefault(key, []).append((label, text))
-            return label
-
-        # Packed in the same order as the rows below, so the columns line up.
-        heading("Date", self.DATE_W, "date")
-        heading("Time", self.TIME_W, "date")
-        heading("ID", self.ID_W, "id")
-        heading("", self.ACTIONS_W, side="right")
-        heading("Hours", self.HOURS_W, "hours", side="right", anchor="e")
-        heading("Description", None, "description", expand=True)
+        self._build_headings()
 
         # Scrollable body: a canvas holding one frame of rows.
         holder = tk.Frame(self, bg=theme.c("bg"))
@@ -481,6 +469,40 @@ class LogViewer(tk.Toplevel):
         self.protocol("WM_DELETE_WINDOW", self.close)
         self.reload_periods()
         self.geometry(f"+{master.winfo_rootx()}+{master.winfo_rooty() + 40}")
+
+    def _build_headings(self):
+        """Column titles for the current view, packed like the rows below."""
+        for child in self.columns.winfo_children():
+            child.destroy()
+        self.headings = {}
+
+        def heading(text, width, key=None, side="left", anchor="w", expand=False):
+            label = tk.Label(self.columns, text=text, bg=theme.c("panel"),
+                             fg=theme.c("dim"), font=theme.ui(8, "bold"),
+                             anchor=anchor, padx=4, pady=4,
+                             **({} if expand else {"width": width}))
+            label.pack(side=side, **({"fill": "x", "expand": True} if expand else {}))
+            if key:
+                label.configure(cursor="hand2")
+                label.bind("<Button-1>", lambda _e, k=key: self.sort_by(k))
+                # Date and Time sort on the same value, so a key can own more
+                # than one heading.
+                self.headings.setdefault(key, []).append((label, text))
+            return label
+
+        if self.view == "summary":
+            heading("ID", self.DATE_W + self.TIME_W, "id")
+            heading("Entries", self.ID_W)
+            heading("", self.ACTIONS_W, side="right")
+            heading("Hours", self.HOURS_W, "hours", side="right", anchor="e")
+            heading("", None, expand=True)
+        else:
+            heading("Date", self.DATE_W, "date")
+            heading("Time", self.TIME_W, "date")
+            heading("ID", self.ID_W, "id")
+            heading("", self.ACTIONS_W, side="right")
+            heading("Hours", self.HOURS_W, "hours", side="right", anchor="e")
+            heading("Description", None, "description", expand=True)
 
     # --- data ---
     def reload_periods(self):
@@ -566,6 +588,9 @@ class LogViewer(tk.Toplevel):
         for child in self.rows.winfo_children():
             child.destroy()
         self.groups = core.load_groups()   # may have changed in settings
+        self.view_button.configure(
+            text="Show entries" if self.view == "summary" else "Show totals")
+        self._build_headings()
         self._mark_sorted_heading()
 
         entries = self._visible_entries()
@@ -580,13 +605,113 @@ class LogViewer(tk.Toplevel):
             self.hint.configure(text="")
             return
 
-        self.hint.configure(
-            text="Click a column heading to sort.  "
-                 "Edit fixes a mistake; Delete removes the entry entirely.")
-        for index, entry in enumerate(entries):
-            self._draw_row(entry, index)
+        if self.view == "summary":
+            self.hint.configure(
+                text="Click an ID to see the entries behind it.  "
+                     "Click a column heading to sort.")
+            self._draw_summary(entries)
+        else:
+            self.hint.configure(
+                text="Click a column heading to sort.  "
+                     "Edit fixes a mistake; Delete removes the entry entirely.")
+            for index, entry in enumerate(entries):
+                self._draw_row(entry, index)
 
-    def _draw_row(self, entry, index):
+    # ---- the summary view -----------------------------------------------
+    def toggle_view(self):
+        self.view = "entries" if self.view == "summary" else "summary"
+        if self.view == "summary" and self.sort_key in ("date", "description"):
+            # Those order individual entries; a summary row has neither.
+            self.sort_key, self.sort_desc = "id", False
+            core.save_settings(sort_by=self.sort_key, sort_desc=self.sort_desc)
+        core.save_settings(log_view=self.view)
+        self.refresh()
+
+    def _toggle_open(self, key):
+        self.expanded.symmetric_difference_update({key})
+        self.refresh()
+
+    def _sorted_totals(self, entries):
+        """Top-level totals, ordered by whichever heading is active.
+
+        Only ID and Hours mean anything for a summary row - a date or a
+        description belongs to one entry - so the rest fall back to name.
+        """
+        rows = core.grouped_totals(entries, self.groups)
+        if self.sort_key == "hours":
+            rows.sort(key=lambda r: r["seconds"], reverse=self.sort_desc)
+        else:
+            rows.sort(key=lambda r: r["label"].lower(),
+                      reverse=self.sort_desc and self.sort_key == "id")
+        return rows
+
+    def _draw_summary(self, entries):
+        by_id = {}
+        for entry in entries:
+            by_id.setdefault(core.id_key(entry["id"]), []).append(entry)
+
+        shade = 0
+        for row in self._sorted_totals(entries):
+            key = (row["kind"], row["label"])
+            open_now = key in self.expanded
+            self._draw_total_row(row, key, open_now, shade, indent=0)
+            shade += 1
+            if not open_now:
+                continue
+
+            if row["kind"] == "group":
+                # A group opens onto its IDs, which open onto their entries.
+                for member in row["members"]:
+                    member_key = ("id", member["label"])
+                    member_open = member_key in self.expanded
+                    self._draw_total_row(member, member_key, member_open,
+                                         shade, indent=1)
+                    shade += 1
+                    if member_open:
+                        for entry in self._entries_for(by_id, member["label"]):
+                            self._draw_row(entry, shade, indent=2, show_id=False)
+                            shade += 1
+            else:
+                for entry in self._entries_for(by_id, row["label"]):
+                    self._draw_row(entry, shade, indent=1, show_id=False)
+                    shade += 1
+
+    @staticmethod
+    def _entries_for(by_id, label):
+        return sorted(by_id.get(core.id_key(label), []), key=lambda e: e["start"])
+
+    def _draw_total_row(self, row, key, open_now, index, indent):
+        background = theme.c("bg") if index % 2 else theme.c("panel")
+        frame = tk.Frame(self.rows, bg=background, cursor="hand2")
+        frame.pack(fill="x")
+
+        arrow = "▾" if open_now else "▸"
+        weight = "bold" if row["kind"] == "group" else "normal"
+        label = tk.Label(frame, text=f"{'    ' * indent}{arrow}  {row['label']}",
+                         bg=background, fg=theme.c("fg"), font=theme.ui(9, weight),
+                         width=self.DATE_W + self.TIME_W, anchor="w", padx=4, pady=6)
+        label.pack(side="left")
+
+        plural = "entry" if row["count"] == 1 else "entries"
+        count = tk.Label(frame, text=f"{row['count']} {plural}", bg=background,
+                         fg=theme.c("dim"), font=theme.ui(8), width=self.ID_W,
+                         anchor="w", padx=4)
+        count.pack(side="left")
+
+        spacer = tk.Label(frame, text="", bg=background, width=self.ACTIONS_W)
+        spacer.pack(side="right")
+        hours = tk.Label(frame, text=f"{core.to_hours(row['seconds'])}", bg=background,
+                         fg=theme.c("fg"), font=theme.ui(9, weight),
+                         width=self.HOURS_W, anchor="e", padx=4)
+        hours.pack(side="right")
+        filler = tk.Label(frame, text="", bg=background)
+        filler.pack(side="left", fill="x", expand=True)
+
+        # The whole row is the target, not just the arrow.
+        for widget in (frame, label, count, hours, filler, spacer):
+            widget.bind("<Button-1>", lambda _e, k=key: self._toggle_open(k))
+
+    def _draw_row(self, entry, index, indent=0, show_id=True):
         started = datetime.fromisoformat(entry["start"])
         ended = datetime.fromisoformat(entry["end"])
         # A shaded band on alternate rows, so long lists stay readable.
@@ -603,12 +728,15 @@ class LogViewer(tk.Toplevel):
         paused = entry.get("paused_seconds", 0)
         # The span alone would overstate the time, so the break is called out.
         break_note = f" -{core.to_minutes(paused):g}m" if paused else ""
-        cell(f"{started:%Y-%m-%d}", self.DATE_W)
+        cell(f"{'    ' * indent}{started:%Y-%m-%d}", self.DATE_W)
         cell(f"{started:%H:%M}-{ended:%H:%M}{overnight}{break_note}", self.TIME_W)
         # Shown as "Group > ID" when it reports under one, so it is obvious
         # which line of the invoice this hour lands on.
         group = core.group_of(entry["id"], self.groups)
-        cell(f"{group} › {entry['id']}" if group else entry["id"], self.ID_W)
+        if show_id:
+            cell(f"{group} › {entry['id']}" if group else entry["id"], self.ID_W)
+        else:
+            cell("", self.ID_W)     # already stated by the row it sits under
 
         # Buttons before the flexible description, so a long note can never
         # push them off the edge of the window.

@@ -214,9 +214,24 @@ keeping a copy of the previous state.
 
 ## Reviewing and fixing the log
 
-Click **Log** in the title bar. You get every entry for one period, newest
-first, with its date, times, ID, description and decimal hours, and a running
-total at the top.
+Click **Log** in the title bar. It opens on **one line per ID**, showing what
+each has totalled for the period — the same figures the markdown reports, but
+without leaving the app:
+
+```
+ID                Entries          Hours
+▸ ACME-114        2 entries         6.25
+▸ Admin           3 entries         2.08
+▸ BLUEBIRD        2 entries         3.75
+```
+
+**Click an ID to open it** and see the sessions behind that number, each with
+its date, times, description and hours. Click again to close it. A group opens
+onto its IDs, which open onto their entries.
+
+**Show entries** switches to the flat list of every session instead, and
+**Show totals** switches back. Whichever you were last in is where it opens
+next time.
 
 - **Showing** switches between periods, or **All time** for everything at once.
   It opens on the period you're in now.
@@ -232,8 +247,9 @@ total at the top.
   BLUEBIRD  3.83    230.0
   Total     10.75   645.0
   ```
-- **Click a column heading to sort** — by date, ID, description or hours. Click
-  the same heading again to reverse it. Date and hours start with the newest and
+- **Click a column heading to sort** — by ID or hours in the totals view, and
+  also by date or description in the entry list. Click the same heading again to
+  reverse it. Date and hours start with the newest and
   longest first; names start at A. Sorting by ID groups everything for one
   client together, which is the view to check before invoicing. The chosen
   order is remembered.
