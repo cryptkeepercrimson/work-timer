@@ -1110,6 +1110,14 @@ class SettingsDialog(Dialog):
         caption(page, "About", pady=(18, 0))
         tk.Label(page, text=f"Work Timer v{core.__version__}", bg=theme.c("bg"),
                  fg=theme.c("fg"), font=theme.ui(9)).pack(padx=18, pady=(3, 0), anchor="w")
+        # The licence asks that copies keep this credit, so it lives in the app
+        # rather than only in a file someone can drop.
+        tk.Label(page, text=f"by {core.AUTHOR}", bg=theme.c("bg"), fg=theme.c("fg"),
+                 font=theme.ui(9)).pack(padx=18, anchor="w")
+        # Shown, not clickable: the app never opens anything on the internet,
+        # and that is worth keeping true.
+        tk.Label(page, text=core.HOMEPAGE, bg=theme.c("bg"), fg=theme.c("dim"),
+                 font=theme.ui(8)).pack(padx=18, pady=(1, 0), anchor="w")
 
         folder = tk.Frame(page, bg=theme.c("bg"))
         folder.pack(padx=18, pady=(6, 0), anchor="w", fill="x")

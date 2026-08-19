@@ -54,7 +54,12 @@ def _data_dir():
 
 # Bump this with every release, before building the .exe - it is what someone
 # reports when they tell you something is broken. See RELEASING.md.
-__version__ = "1.2.0"
+__version__ = "1.2.1"
+
+# Shown in the app's About panel. The licence asks that copies keep the credit,
+# so it has to be somewhere a copy actually carries.
+AUTHOR = "CryptKeeperCrimson"
+HOMEPAGE = "github.com/cryptkeepercrimson/work-timer"
 
 APP_DIR = _data_dir()
 INSTALL_DIR = _install_dir()

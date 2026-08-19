@@ -447,12 +447,40 @@ connects to anything.
 `Time Logs/` and `settings.json` are **not tracked by git**. If you fork or
 clone this, your own hours never end up in a commit.
 
+## Security and privacy
+
+Reviewed in full; the short version:
+
+- **No network access of any kind.** There is no networking code in the app —
+  no sync, no telemetry, no update check. Your hours never leave your machine.
+- **No third-party dependencies.** Python's standard library only, so there is
+  no package that could be compromised upstream.
+- **Your data is plain files you own**, in `Time Logs` beside the app. That is
+  the point of the design, and it means anyone who can read that folder can
+  read your clients and hours. Two things follow:
+  - **Where you put it matters.** A folder on a secondary drive often inherits
+    permissions letting any account on the machine read it, while somewhere
+    under your user profile does not. On a single-user PC this rarely matters.
+  - **Anything syncing that folder** — OneDrive, Dropbox, a backup tool —
+    copies your client list with it.
+- **Backups keep 60 days** of daily snapshots in `Time Logs/backups`, so old
+  entries persist there after you delete them.
+- **Nothing is encrypted.** File permissions do not protect against someone with
+  the disk in their hands; that is what full-disk encryption is for.
+- **The .exe is not code-signed**, so Windows will warn on first run. That is a
+  missing trust signal, not a sign of anything wrong — build it yourself from
+  source with `build_exe.py` if you would rather not take it on trust.
+
 ## Licence
 
 Copyright 2026 CryptKeeperCrimson. All rights reserved — see [LICENSE.md](LICENSE.md).
 
-- **Use it for your own work**, including work you're paid for. No need to ask.
+- **Use it for your own work**, including work you're paid for — as an
+  individual, a business, or any other organisation. No need to ask.
 - **Share it unchanged**, and modify it for your own use.
+- **Keep the credit** on anything you pass on or build on: the licence, the
+  copyright notice, the credit in ⚙ → General → About, and a link back here.
+  Using it privately asks nothing of you.
 - **Don't make a product out of it** — no selling it, charging for access,
   offering it as a service, or bundling it into something you sell.
 

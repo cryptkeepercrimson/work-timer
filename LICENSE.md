@@ -2,13 +2,26 @@
 
 Copyright 2026 CryptKeeperCrimson. All rights reserved.
 
+Work Timer is free to use. It is not free to sell, and the credit stays with it.
+
 ## You may
 
-- **Use Work Timer to track your own working time**, including work you are paid
-  for. Freelancers, employees and businesses recording their own hours are all
-  welcome, and you do not need to ask.
+- **Use Work Timer for your own work**, including work you are paid for — as an
+  individual, a business, or any other organisation. You do not need to ask.
 - **Share it unchanged** with colleagues and friends.
 - **Modify it for your own use.**
+
+## You must
+
+**Keep the credit.** Any copy you share, and anything you build on it, must keep:
+
+- this licence and the copyright notice above,
+- the credit shown in the app under **⚙ → General → About**,
+- and a statement of where it came from:
+  https://github.com/cryptkeepercrimson/work-timer
+
+Using it privately for your own work asks nothing of you. This applies when you
+pass it on or build on it.
 
 ## You may not
 
